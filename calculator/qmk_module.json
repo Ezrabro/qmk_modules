@@ -1,0 +1,11 @@
+{
+    "module_name": "Numpad Calculator",
+    "maintainer": "azar",
+    "license": "GPL-2.0-or-later",
+    "keycodes": [
+        {
+            "key": "CALC_TOGGLE",
+            "aliases": ["CALCT"]
+        }
+    ]
+}

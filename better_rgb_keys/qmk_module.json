@@ -1,0 +1,8 @@
+{
+    "module_name": "Better RGB Keys (RGB Matrix only)",
+    "maintainer": "josh@windowoffire.com",
+    "license": "GPL-2.0-or-later",
+    "features": {
+        "deferred_exec" : true
+    }
+}

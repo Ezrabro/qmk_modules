@@ -1,0 +1,3 @@
+#define CALCULATOR_BIT_LEDS { 21,  22,  23,  24,  25,  26,  27,  28,  29,  30, }
+#define CALCULATOR_SIGN_LED 20
+#define CALCULATOR_NUMLOCK_LED 37
