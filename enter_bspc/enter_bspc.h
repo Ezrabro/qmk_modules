@@ -10,7 +10,7 @@
 #endif
 
 #ifndef ENTER_BSPC_WORD_HOLD_TERM
-#    define ENTER_BSPC_WORD_HOLD_TERM 500  // ms further held (same press) before -> Word mode
+#    define ENTER_BSPC_WORD_HOLD_TERM 300  // ms further held (same press) before -> Word mode
 #endif
 
 #ifndef ENTER_BSPC_TIMEOUT

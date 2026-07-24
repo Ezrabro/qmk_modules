@@ -11,6 +11,11 @@ static bool               key_down             = false;
 static deferred_token to_backspace_token = 0;
 static deferred_token to_word_token      = 0;
 
+// Timeout feedback state
+static bool            timeout_flash_active = false;
+static uint8_t         timeout_flash_count  = 0;
+static deferred_token  timeout_flash_token  = 0;
+
 static void refresh_mode_timer(void) {
     mode_last_action_time = timer_read();
 }
@@ -46,6 +51,23 @@ static uint32_t escalate_to_word_cb(uint32_t trigger_time, void *cb_arg) {
     return 0;
 }
 
+// Flash callback - handles the three white flashes
+static uint32_t timeout_flash_cb(uint32_t trigger_time, void *cb_arg) {
+    if (timeout_flash_count >= 6) {  // 3 flashes = 6 toggles (on/off/on/off/on/off)
+        timeout_flash_active = false;
+        timeout_flash_token = 0;
+        return 0;
+    }
+    
+    timeout_flash_count++;
+    // Toggle the flash state
+    timeout_flash_active = (timeout_flash_count % 2 == 1);
+    
+    // Schedule next toggle in 100ms
+    timeout_flash_token = defer_exec(100, timeout_flash_cb, NULL);
+    return 0;
+}
+
 bool process_record_enter_bspc(uint16_t keycode, keyrecord_t *record) {
     if (keycode != ENT_BS) {
         return true;
@@ -53,6 +75,14 @@ bool process_record_enter_bspc(uint16_t keycode, keyrecord_t *record) {
 
     if (record->event.pressed) {
         key_down = true;
+
+        // Cancel any timeout flash if user presses the key
+        if (timeout_flash_token) {
+            cancel_deferred_exec(timeout_flash_token);
+            timeout_flash_token = 0;
+            timeout_flash_active = false;
+            timeout_flash_count = 0;
+        }
 
         switch (current_mode) {
             case MODE_NONE:
@@ -127,6 +157,15 @@ void housekeeping_task_enter_bspc(void) {
 
     if (current_mode != MODE_NONE &&
         timer_elapsed(mode_last_action_time) > ENTER_BSPC_TIMEOUT) {
+        
+        // Start the timeout flash feedback
+        timeout_flash_active = false;
+        timeout_flash_count = 0;
+        if (timeout_flash_token) {
+            cancel_deferred_exec(timeout_flash_token);
+        }
+        timeout_flash_token = defer_exec(50, timeout_flash_cb, NULL);  // Start first flash after 50ms
+        
         current_mode = MODE_NONE;
         refresh_mode_timer();
     }
@@ -134,22 +173,28 @@ void housekeeping_task_enter_bspc(void) {
 
 #ifdef ENTER_BSPC_LED_INDEX
 bool rgb_matrix_indicators_enter_bspc(void) {
+    // Check for timeout flash first (highest priority)
+    if (timeout_flash_active) {
+        // White flash during timeout notification
+        rgb_matrix_set_color(ENTER_BSPC_LED_INDEX, 255, 255, 255);
+        return true;
+    }
+    
     uint16_t elapsed  = timer_elapsed(mode_last_action_time);
     uint8_t  fraction = (elapsed >= ENTER_BSPC_TIMEOUT)
                             ? 0
                             : 255 - ((uint32_t)elapsed * 255 / ENTER_BSPC_TIMEOUT);
 
-    if (fraction == 0) {
-        return true;  // fully faded -- let the normal effect draw this LED
+    if (fraction == 0 || current_mode == MODE_NONE) {
+        return true;  // fully faded or in NONE mode -- let the normal effect draw this LED
     }
 
     uint8_t r = 0, g = 0, b = 0;
     switch (current_mode) {
-        case MODE_NONE:    // No LED - key is "unlit" when in no mode
-            return true;
         case MODE_ENTER:   g = fraction; break;
         case MODE_BACKSPACE: b = fraction; break;
         case MODE_WORD:      r = fraction; break;
+        default: return true;
     }
     rgb_matrix_set_color(ENTER_BSPC_LED_INDEX, r, g, b);
     return true;
