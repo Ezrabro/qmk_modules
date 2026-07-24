@@ -1,0 +1,11 @@
+{
+    "module_name": "Enter / Hold-to-Backspace",
+    "maintainer": "azar",
+    "license": "GPL-2.0-or-later",
+    "features": {
+        "deferred_exec": true
+    },
+    "keycodes": [
+        { "key": "ENT_BS" }
+    ]
+}
