@@ -6,7 +6,7 @@
 // the ENT_BS enum value automatically, no manual enum needed here.
 
 #ifndef ENTER_BSPC_HOLD_TERM
-#    define ENTER_BSPC_HOLD_TERM 150   // ms held (from Enter mode) before -> Backspace mode
+#    define ENTER_BSPC_HOLD_TERM 150   // ms held (from NONE mode) before -> Backspace mode
 #endif
 
 #ifndef ENTER_BSPC_WORD_HOLD_TERM
@@ -14,7 +14,7 @@
 #endif
 
 #ifndef ENTER_BSPC_TIMEOUT
-#    define ENTER_BSPC_TIMEOUT 1500   // ms of inactivity before mode fades out / reverts
+#    define ENTER_BSPC_TIMEOUT 1500   // ms of inactivity before mode fades out / reverts to NONE
 #endif
 
 #ifndef ENTER_BSPC_LED_INDEX

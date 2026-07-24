@@ -1,13 +1,13 @@
 #include "enter_bspc.h"
 
-typedef enum { MODE_ENTER, MODE_BACKSPACE, MODE_WORD } enter_bspc_mode_t;
+typedef enum { MODE_NONE, MODE_ENTER, MODE_BACKSPACE, MODE_WORD } enter_bspc_mode_t;
 
-static enter_bspc_mode_t current_mode          = MODE_ENTER;
+static enter_bspc_mode_t current_mode          = MODE_NONE;
 static uint16_t          mode_last_action_time = 0;
 static bool               key_down             = false;
 
-// Only armed when a press begins in Enter mode -- tracks the single
-// continuous hold that may escalate Enter -> Backspace -> Word.
+// Only armed when a press begins in NONE mode -- tracks the single
+// continuous hold that may escalate None -> Backspace -> Word.
 static deferred_token to_backspace_token = 0;
 static deferred_token to_word_token      = 0;
 
@@ -19,12 +19,17 @@ static uint32_t escalate_to_word_cb(uint32_t trigger_time, void *cb_arg);
 
 // Fires if the original press is still held ENTER_BSPC_HOLD_TERM ms later.
 static uint32_t escalate_to_backspace_cb(uint32_t trigger_time, void *cb_arg) {
+    // Cancel any pending Enter repeats
+    if (to_backspace_token) {
+        cancel_deferred_exec(to_backspace_token);
+        to_backspace_token = 0;
+    }
+    
     unregister_code(KC_ENT);
     register_code(KC_BSPC);
     current_mode = MODE_BACKSPACE;
     refresh_mode_timer();
-    to_backspace_token = 0;
-
+    
     // Still watching the SAME continuous hold for further escalation.
     to_word_token = defer_exec(ENTER_BSPC_WORD_HOLD_TERM, escalate_to_word_cb, NULL);
     return 0;
@@ -50,21 +55,24 @@ bool process_record_enter_bspc(uint16_t keycode, keyrecord_t *record) {
         key_down = true;
 
         switch (current_mode) {
+            case MODE_NONE:
+                // No action yet - we wait to see if it's a tap or hold
+                // Arm the escalation chain from NONE mode
+                to_backspace_token = defer_exec(ENTER_BSPC_HOLD_TERM, escalate_to_backspace_cb, NULL);
+                break;
+
             case MODE_ENTER:
                 register_code(KC_ENT);
-                // Only arm the escalation chain when starting fresh from Enter mode.
-                to_backspace_token = defer_exec(ENTER_BSPC_HOLD_TERM, escalate_to_backspace_cb, NULL);
+                // No escalation timer in Enter mode - holding repeats Enter
                 break;
 
             case MODE_BACKSPACE:
                 register_code(KC_BSPC);
-                // No escalation timer here -- a fresh hold just repeats Backspace.
                 break;
 
             case MODE_WORD:
                 register_code(KC_LCTL);
                 register_code(KC_BSPC);
-                // No escalation -- Word mode is the top tier.
                 break;
         }
 
@@ -73,11 +81,19 @@ bool process_record_enter_bspc(uint16_t keycode, keyrecord_t *record) {
         key_down = false;
 
         switch (current_mode) {
-            case MODE_ENTER:
+            case MODE_NONE:
+                // It was a tap! Cancel the escalation timer and send Enter
                 if (to_backspace_token) {
                     cancel_deferred_exec(to_backspace_token);
                     to_backspace_token = 0;
                 }
+                register_code(KC_ENT);
+                unregister_code(KC_ENT);
+                current_mode = MODE_ENTER;
+                refresh_mode_timer();
+                break;
+
+            case MODE_ENTER:
                 unregister_code(KC_ENT);
                 break;
 
@@ -109,9 +125,9 @@ void housekeeping_task_enter_bspc(void) {
         return;
     }
 
-    if (current_mode != MODE_ENTER &&
+    if (current_mode != MODE_NONE &&
         timer_elapsed(mode_last_action_time) > ENTER_BSPC_TIMEOUT) {
-        current_mode = MODE_ENTER;
+        current_mode = MODE_NONE;
         refresh_mode_timer();
     }
 }
@@ -129,7 +145,9 @@ bool rgb_matrix_indicators_enter_bspc(void) {
 
     uint8_t r = 0, g = 0, b = 0;
     switch (current_mode) {
-        case MODE_ENTER:     g = fraction; break;
+        case MODE_NONE:    // No LED - key is "unlit" when in no mode
+            return true;
+        case MODE_ENTER:   g = fraction; break;
         case MODE_BACKSPACE: b = fraction; break;
         case MODE_WORD:      r = fraction; break;
     }
