@@ -1,0 +1,8 @@
+{
+    "features": {
+        "raw": true,
+        "via": false
+    },
+    "maintainer": "OpenRGBDevelopers",
+    "module_name": "openrgb"
+}
